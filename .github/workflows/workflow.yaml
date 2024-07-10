@@ -168,6 +168,10 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.PACKAGE_VERSION }}
+          build-args: |
+            POETRY_VERSION=${{ env.POETRY_VERSION }}
+            PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+            DEBIAN_VERSION=${{ env.DEBIAN_VERSION }}
 
   deploy-postgres-and-cloudbeaver:
     runs-on: ubuntu-latest
