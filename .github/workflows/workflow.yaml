@@ -17,10 +17,8 @@ env:
   KUBERNETES_CLUSTER_NAME: "${{ secrets.GKE_CLUSTER_NAME }}"
   KUBERNETES_NAMESPACE: "api"
   KUBERNETES_DEPLOYMENT: ${{ github.event.repository.name }}
-  KARPENTER_NAMESPACE: "karpenter"
-  KARPENTER_GCP_SA: ${{ secrets.KARPENTER_GCP_SA }}
   CLUSTER_NAME: "${{ secrets.CLUSTER_NAME }}"
-  CLUSTER_ENDPOINT: "https://34.46.23.57"
+  CLUSTER_ENDPOINT: "https://34.172.6.203"
 
 jobs:
   install-test-coverage:
