@@ -168,10 +168,6 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.PACKAGE_VERSION }}
-          build-args: |
-            POETRY_VERSION=${{ env.POETRY_VERSION }}
-            PYTHON_VERSION=${{ env.PYTHON_VERSION }}
-            DEBIAN_VERSION=${{ env.DEBIAN_VERSION }}
 
   deploy-postgres-and-cloudbeaver:
     runs-on: ubuntu-latest
@@ -199,15 +195,10 @@ jobs:
         run: |
           kubectl get namespace ${{ env.KUBERNETES_NAMESPACE }} || kubectl create namespace ${{ env.KUBERNETES_NAMESPACE }}
       
-      - name: Deploy PostgreSQL
+      - name: Deploy PostgreSQL and CloudBeaver
         run: |
-          kubectl apply -f postgres-deployment.yaml -n ${{ env.KUBERNETES_NAMESPACE }}
-          kubectl apply -f postgres-service.yaml -n ${{ env.KUBERNETES_NAMESPACE }}
-      
-      - name: Deploy CloudBeaver
-        run: |
-          kubectl apply -f cloudbeaver-deployment.yaml -n ${{ env.KUBERNETES_NAMESPACE }}
-          kubectl apply -f cloudbeaver-service.yaml -n ${{ env.KUBERNETES_NAMESPACE }}
+          kubectl apply -f deployment.yaml -n ${{ env.KUBERNETES_NAMESPACE }}
+          kubectl apply -f service.yaml -n ${{ env.KUBERNETES_NAMESPACE }}
 
       - name: Enable autoscaling on GKE
         run: |
