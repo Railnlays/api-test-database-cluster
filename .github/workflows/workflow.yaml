@@ -1,9 +1,11 @@
 name: CICD - Workflow
+
 on:
   push:
     branches: [master, main]
   pull_request:
     branches: [master, main]
+
 env:
   PYTHON_VERSION: "3.11"
   POETRY_VERSION: "1.7.1"
@@ -12,31 +14,43 @@ env:
   DOCKER_IMAGE_TAG: ${{ github.sha }}
   DEBIAN_VERSION: "bookworm"
   PROJECT_FOLDER: "app"
-  KUBERNETES_CLUSTER_NAME: "railnlays-dev"
+  KUBERNETES_CLUSTER_NAME: "${{ secrets.GKE_CLUSTER_NAME }}"
   KUBERNETES_NAMESPACE: "api"
   KUBERNETES_DEPLOYMENT: ${{ github.event.repository.name }}
+  KARPENTER_NAMESPACE: "karpenter"
+  KARPENTER_GCP_SA: ${{ secrets.KARPENTER_GCP_SA }}
+  CLUSTER_NAME: "${{ secrets.CLUSTER_NAME }}"
+  CLUSTER_ENDPOINT: "https://34.46.23.57"
+
 jobs:
   install-test-coverage:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      
       - name: Setup python versions
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
       - name: Install Poetry
-        uses: abatilo/actions-poetry@v2.3.0
-        with:
-          poetry-version: ${{ env.POETRY_VERSION }}
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "export PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
+          poetry --version
+      
       - name: Install Python dependencies
         run: poetry install
+      
       - name: Code quality
         run: poetry run pylint --fail-under=${{ env.PYLINT_THRESHOLD }} **/*py
+      
       - name: Test & Generate Coverage Report
         run: |
           poetry run coverage run --source ${{ env.PROJECT_FOLDER }}/ -m pytest --junitxml=pytest.xml
           poetry run coverage xml
+
   publish-in-pypi:
     runs-on: ubuntu-latest
     needs: [install-test-coverage]
@@ -44,18 +58,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      
       - name: Setup python versions
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      
       - name: Install Poetry
-        uses: abatilo/actions-poetry@v2.3.0
-        with:
-          poetry-version: ${{ env.POETRY_VERSION }}
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "export PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
+          poetry --version
+      
       - name: Pypi Publish
         run: poetry publish --build
         env: 
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.POETRY_PYPI_TOKEN_PYPI }}
+
   create-tag-and-branch:
     runs-on: ubuntu-latest
     needs: [install-test-coverage]
@@ -63,19 +82,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      
       - name: Setup python versions
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      
       - name: Install Poetry
-        uses: abatilo/actions-poetry@v2.3.0
-        with:
-          poetry-version: ${{ env.POETRY_VERSION }}
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "export PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
+          poetry --version
+      
       - name: Create package version environment variable
         run: echo "PACKAGE_VERSION=v$(poetry version | awk '{print $2}')" >> $GITHUB_ENV
+      
       - uses: rickstaa/action-create-tag@v1
         with:
           tag: ${{ env.PACKAGE_VERSION }}
+      
       - name: Create branch
         uses: peterjgrainger/action-create-branch@v2.3.0
         env:
@@ -83,6 +108,7 @@ jobs:
         with:
           branch: ${{ env.PACKAGE_VERSION }}
           sha: '${{ github.event.pull_request.head.sha }}'
+
   build-and-push-docker-image:
     runs-on: ubuntu-latest
     needs: [install-test-coverage]
@@ -90,26 +116,34 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      
       - name: Setup python versions
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      
       - name: Install Poetry
-        uses: abatilo/actions-poetry@v2.3.0
-        with:
-          poetry-version: ${{ env.POETRY_VERSION }}
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "export PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
+          poetry --version
+      
       - name: Set version
         run: |
           echo "PACKAGE_VERSION=$(poetry version --no-ansi | cut -d ' ' -f 2)" >> $GITHUB_ENV
+      
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
       - name: Set up QEMU 
         uses: docker/setup-qemu-action@v3
+      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+      
       - name: Cache Docker layers
         uses: actions/cache@v3
         with:
@@ -117,6 +151,7 @@ jobs:
           key: ${{ runner.os }}-buildx-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-
+      
       - name: Build and Push to Docker Hub
         uses: docker/build-push-action@v5
         with:
@@ -134,18 +169,48 @@ jobs:
             POETRY_VERSION=${{ env.POETRY_VERSION }}
             PYTHON_VERSION=${{ env.PYTHON_VERSION }}
             DEBIAN_VERSION=${{ env.DEBIAN_VERSION }}
-  deploy-in-do-dev-kubernetes:
+
+  deploy-in-gke:
     runs-on: ubuntu-latest
     needs: [build-and-push-docker-image]
     if: "${{contains(github.event.head_commit.message, 'cd run') && contains(github.event.head_commit.message, 'DO') && contains(github.event.head_commit.message, 'DEV')}}"
     steps:
-      - name: Install doctl
-        uses: digitalocean/action-doctl@v2
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
         with:
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-      - name: Save DigitalOcean kubeconfig
-        run: doctl kubernetes cluster kubeconfig save ${{ env.KUBERNETES_CLUSTER_NAME }}
-      - name: Deploy DO Kubernetes
-        run: kubectl set image deployment/${{ env.KUBERNETES_DEPLOYMENT }} ${{ env.KUBERNETES_DEPLOYMENT }}=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }} -n ${{ env.KUBERNETES_NAMESPACE }}
-      - name: Verify deployment
-        run: kubectl rollout status deployment/${{ env.KUBERNETES_DEPLOYMENT }} -n ${{ env.KUBERNETES_NAMESPACE }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          install_components: kubectl
+      
+      - name: Configure kubectl
+        run: gcloud container clusters get-credentials ${{ env.KUBERNETES_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }}
+
+      - name: Ensure namespace exists
+        run: |
+          kubectl get namespace ${{ env.KUBERNETES_NAMESPACE }} || kubectl create namespace ${{ env.KUBERNETES_NAMESPACE }}
+      
+      - name: Apply Deployment and Service YAML
+        run: |
+          kubectl apply -f deployment.yaml -n ${{ env.KUBERNETES_NAMESPACE }}
+          kubectl apply -f service.yaml -n ${{ env.KUBERNETES_NAMESPACE }}
+      
+      - name: Enable autoscaling on GKE
+        run: |
+          gcloud container clusters update ${{ secrets.GKE_CLUSTER_NAME }} --enable-autoscaling --min-nodes=1 --max-nodes=3 --zone=${{ secrets.GKE_ZONE }}
+      
+      - name: Configure autoscaling rule
+        run: |
+          kubectl autoscale deployment ${{ env.KUBERNETES_DEPLOYMENT }} --cpu-percent=80 --min=1 --max=3 -n ${{ env.KUBERNETES_NAMESPACE }}
+
+      - name: Verify Deployment
+        run: |
+          kubectl rollout status deployment/${{ env.KUBERNETES_DEPLOYMENT }} -n ${{ env.KUBERNETES_NAMESPACE }}
+          kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }}
+  
