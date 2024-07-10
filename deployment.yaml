@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api-python-template
+  name: api-test-database-cluster
   namespace: api
   labels:
-    app: api-python-template
+    app: api-test-database-cluster
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: api-python-template
+      app: api-test-database-cluster
   template:
     metadata:
       labels:
-        app: api-python-template
+        app: api-test-database-cluster
     spec:
       containers:
-      - name: api-python-template
-        image: railnlays/api-python-template:latest
+      - name: api-test-database-cluster
+        image: railnlays/api-test-database-cluster:latest
         ports:
         - containerPort: 5000
         env:

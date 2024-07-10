@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "api-python-template"
+name = "api-test-database-cluster"
 version = "0.1.0"
-description = "API-python-template"
+description = "API-test-database-cluster"
 authors = ["Julio Martinez del Pino <juliomdp92@gmail.com>"]
 readme = "README.md"
 packages = [
