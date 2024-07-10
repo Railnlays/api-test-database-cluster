@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "api-test-database-cluster"
-version = "0.1.4"
+version = "0.1.5"
 description = "API-test-database-cluster"
 authors = ["Julio Martinez del Pino <juliomdp92@gmail.com>"]
 readme = "README.md"
