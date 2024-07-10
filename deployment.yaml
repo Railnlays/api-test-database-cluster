@@ -160,5 +160,5 @@ metadata:
   namespace: api
 type: Opaque
 data:
-  username: base64-encoded-username  # Codificar en base64 el usuario de PostgreSQL
-  password: base64-encoded-password  # Codificar en base64 la contraseña de PostgreSQL
+  username: Y2JhZG1pbg==
+  password: RWtAOTU4NDAyNTI3
